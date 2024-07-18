@@ -1,0 +1,38 @@
+import torch
+
+
+@torch.jit.script
+def get_nef_indices(centers, n_nodes: int, n_edges_per_node: int):
+
+    n_edges = len(centers)
+    edges_to_nef = torch.zeros(
+        (n_nodes, n_edges_per_node), dtype=torch.long, device=centers.device
+    )
+    nef_to_edges_neighbor = torch.empty(
+        (n_edges,), dtype=torch.long, device=centers.device
+    )
+    node_counter = torch.zeros((n_nodes,), dtype=torch.long, device=centers.device)
+    nef_mask = torch.full(
+        (n_nodes, n_edges_per_node), 0, dtype=torch.bool, device=centers.device
+    )
+
+    for i in range(n_edges):
+        center = centers[i]
+        edges_to_nef[center, node_counter[center]] = i
+        nef_mask[center, node_counter[center]] = True
+        nef_to_edges_neighbor[i] = node_counter[center]
+        node_counter[center] += 1
+
+    return edges_to_nef, nef_to_edges_neighbor, nef_mask
+
+
+@torch.jit.script
+def get_corresponding_edges(array):
+    n_edges = len(array)
+    array_inversed = array.flip(1)
+    inverse_indices = torch.empty((n_edges,), dtype=torch.long, device=array.device)
+    for i in range(n_edges):
+        inverse_indices[i] = torch.nonzero(
+            torch.all(array_inversed == array[i], dim=1)
+        )[0][0]
+    return inverse_indices
