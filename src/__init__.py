@@ -5,33 +5,53 @@ import os
 
 try:
     site_packages_directory = get_python_lib()
-    lib_path = os.path.join(site_packages_directory, "nanopet_neighbors.so")
+    lib_path = os.path.join(site_packages_directory, "nanopet_neighbors_cpu.so")
     torch.ops.load_library(str(lib_path))
 except Exception as e:
     print(f"Failed to load nanopet-neighbors: {e}")
 
+try:
+    site_packages_directory = get_python_lib()
+    lib_path = os.path.join(site_packages_directory, "nanopet_neighbors_cuda.so")
+    torch.ops.load_library(str(lib_path))
+    HAS_CUDA = True
+except Exception:
+    HAS_CUDA = False
+
 
 def get_nef_indices(centers, n_nodes: int, n_edges_per_node: int):
     original_dtype = centers.dtype
-    original_device = centers.device
+    centers = centers.to(torch.long)
 
-    centers = centers.to("cpu", torch.long)
-    edges_to_nef, nef_to_edges_neighbor, nef_mask = torch.ops.nanopet_neighbors.get_nef_indices(
-        centers, n_nodes, n_edges_per_node
-    )
+    device = centers.device
+    if device.type == "cpu":
+        edges_to_nef, nef_to_edges_neighbor, nef_mask = torch.ops.nanopet_neighbors_cpu.get_nef_indices(
+            centers, n_nodes, n_edges_per_node
+        )
+    elif device.type == "cuda":
+        edges_to_nef, nef_to_edges_neighbor, nef_mask = torch.ops.nanopet_neighbors_cuda.get_nef_indices(
+            centers, n_nodes, n_edges_per_node
+        )
+    else:
+        raise ValueError(f"Unsupported device: {device}")
 
     return (
-        edges_to_nef.to(original_device, original_dtype),
-        nef_to_edges_neighbor.to(original_device, original_dtype),
-        nef_mask.to(original_device),
+        edges_to_nef.to(original_dtype),
+        nef_to_edges_neighbor.to(original_dtype),
+        nef_mask,
     )
 
 
 def get_corresponding_edges(array):
     original_dtype = array.dtype
-    original_device = array.device
+    array = array.to(torch.long)
 
-    array = array.to("cpu", torch.long)
-    inverse_indices = torch.ops.nanopet_neighbors.get_corresponding_edges(array)
+    device = array.device
+    if device.type == "cpu":
+        inverse_indices = torch.ops.nanopet_neighbors_cpu.get_corresponding_edges(array)
+    elif device.type == "cuda":
+        inverse_indices = torch.ops.nanopet_neighbors_cuda.get_corresponding_edges(array)
+    else:
+        raise ValueError(f"Unsupported device: {device}")
 
-    return inverse_indices.to(original_device, original_dtype)
+    return inverse_indices.to(original_dtype)

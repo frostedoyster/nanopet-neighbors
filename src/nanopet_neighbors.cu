@@ -7,6 +7,9 @@ std::vector<torch::Tensor> get_nef_indices(
     int64_t n_nodes,
     int64_t n_edges_per_node
 ) {
+    torch::Device original_device = centers.device();
+    centers = centers.to(torch::kCPU);
+
     centers = centers.to(torch::kLong).contiguous();
 
     int64_t n_edges = centers.size(0);
@@ -34,6 +37,10 @@ std::vector<torch::Tensor> get_nef_indices(
         node_counter[center] += 1;
     }
 
+    edges_to_nef = edges_to_nef.to(original_device);
+    nef_to_edges_neighbor = nef_to_edges_neighbor.to(original_device);
+    nef_mask = nef_mask.to(original_device);
+
     return {edges_to_nef, nef_to_edges_neighbor, nef_mask};
 }
 
@@ -41,6 +48,9 @@ std::vector<torch::Tensor> get_nef_indices(
 torch::Tensor get_corresponding_edges(
     torch::Tensor array
 ) {
+    torch::Device original_device = array.device();
+    array = array.to(torch::kCPU);
+
     torch::Tensor centers = array.index({torch::indexing::Slice(), 0}).to(torch::kLong).contiguous();
     torch::Tensor neighbors = array.index({torch::indexing::Slice(), 1}).to(torch::kLong).contiguous();
 
@@ -64,11 +74,13 @@ torch::Tensor get_corresponding_edges(
         }
     }
 
+    inverse_indices = inverse_indices.to(original_device);
+
     return inverse_indices;
 }
 
 
-TORCH_LIBRARY(nanopet_neighbors, m) {
+TORCH_LIBRARY(nanopet_neighbors_cuda, m) {
     m.def(
         "get_nef_indices",
          &get_nef_indices

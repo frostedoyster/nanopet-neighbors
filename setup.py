@@ -1,18 +1,25 @@
-from setuptools import setup, Extension
-from torch.utils.cpp_extension import BuildExtension, include_paths, library_paths
+from setuptools import setup
+from torch.utils.cpp_extension import BuildExtension, CppExtension, CUDAExtension
+import subprocess
 
-include_dirs = include_paths()
-library_dirs = library_paths()
-libraries = ['c10', 'torch', 'torch_cpu']
 
-nanopet_neighbors = Extension(
-    name="nanopet_neighbors",
-    sources=["src/nanopet_neighbors.cpp"],
-    include_dirs=include_dirs,
-    library_dirs=library_dirs,
-    libraries=libraries,
-    language='c++',
+nanopet_neighbors_cpu = CppExtension(
+    name="nanopet_neighbors_cpu",
+    sources=["src/nanopet_neighbors.cc"],
 )
+
+nanopet_neighbors_cuda = CUDAExtension(
+    name="nanopet_neighbors_cuda",
+    sources=["src/nanopet_neighbors.cu"],
+)
+
+extensions = [nanopet_neighbors_cpu]
+# try to find out if nvcc is available
+try:
+    nvcc_path = subprocess.check_output("which nvcc", shell=True).decode("utf-8").strip()
+    extensions.append(nanopet_neighbors_cuda)
+except:
+    pass
 
 setup(
     name="nanopet-neighbors",
@@ -20,12 +27,12 @@ setup(
     packages=["nanopet_neighbors"],
     package_dir={"nanopet_neighbors": "src"},
     install_requires=["torch"],
-    ext_modules=[nanopet_neighbors],
+    ext_modules=extensions,
     cmdclass={
         "build_ext": BuildExtension.with_options(no_python_abi_suffix=True)
     },
     package_data={
-        'nanopet_neighbors': ['nanopet_neighbors.so'],
+        'nanopet_neighbors': ['nanopet_neighbors_cpu.so', 'nanopet_neighbors_cuda.so'],
     },
     include_package_data=True,
 )
