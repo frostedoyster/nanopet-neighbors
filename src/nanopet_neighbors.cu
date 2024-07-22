@@ -45,12 +45,32 @@ std::vector<torch::Tensor> get_nef_indices(
 }
 
 
+__global__ void find_corresponding_edges_kernel(
+    const long* centers_ptr,
+    const long* neighbors_ptr,
+    long* inverse_indices_ptr,
+    int64_t n_edges
+) {
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+
+    if (i < n_edges) {
+        bool found = false;
+        for (int64_t j = 0; j < n_edges; j++) {
+            if (centers_ptr[i] == neighbors_ptr[j] && centers_ptr[j] == neighbors_ptr[i]) {
+                inverse_indices_ptr[i] = j;
+                found = true;
+                break;
+            }
+        }
+        if (!found) {
+            inverse_indices_ptr[i] = -1; // Use -1 to indicate no corresponding edge found
+        }
+    }
+}
+
 torch::Tensor get_corresponding_edges(
     torch::Tensor array
 ) {
-    torch::Device original_device = array.device();
-    array = array.to(torch::kCPU);
-
     torch::Tensor centers = array.index({torch::indexing::Slice(), 0}).to(torch::kLong).contiguous();
     torch::Tensor neighbors = array.index({torch::indexing::Slice(), 1}).to(torch::kLong).contiguous();
 
@@ -64,17 +84,24 @@ torch::Tensor get_corresponding_edges(
     );
     long* inverse_indices_ptr = inverse_indices.data_ptr<long>();
 
-    for (int64_t i = 0; i < n_edges; i++) {
-        for (int64_t j = 0; j < n_edges; j++) {
-            if (centers_ptr[i] == neighbors_ptr[j] && centers_ptr[j] == neighbors_ptr[i]) {
-                inverse_indices_ptr[i] = j;
-                break;
-            }
-            if (j == n_edges - 1) throw std::runtime_error("No corresponding edge found");
-        }
+    int threads_per_block = 256;
+    int num_blocks = (n_edges + threads_per_block - 1) / threads_per_block;
+
+    find_corresponding_edges_kernel<<<num_blocks, threads_per_block>>>(
+        centers_ptr,
+        neighbors_ptr,
+        inverse_indices_ptr,
+        n_edges
+    );
+
+    cudaError_t err = cudaGetLastError();
+    if (err != cudaSuccess) {
+        throw std::runtime_error(std::string("CUDA kernel failed: ") + cudaGetErrorString(err));
     }
 
-    inverse_indices = inverse_indices.to(original_device);
+    if (torch::any(inverse_indices == -1).item<bool>()) {
+        throw std::runtime_error("Some edges do not have corresponding edges");
+    }
 
     return inverse_indices;
 }

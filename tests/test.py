@@ -6,6 +6,9 @@ from reference_implementations import get_nef_indices as get_nef_indices_ref
 from reference_implementations import get_corresponding_edges as get_corresponding_edges_ref
 
 
+torch.manual_seed(0)
+
+
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
 def test_get_nef_indices(device):
     n_nodes = 1000
@@ -60,3 +63,11 @@ def test_get_corresponding_edges_torchscript(device):
     result_ref = get_corresponding_edges_ref(array)
 
     assert torch.equal(result, result_ref)
+
+
+@pytest.mark.parametrize("device", ["cpu", "cuda"])
+def test_get_corresponding_edges_error(device):
+    array = torch.randint(0, 5, (10, 2), device=device)
+
+    with pytest.raises(RuntimeError):
+        get_corresponding_edges(array)
