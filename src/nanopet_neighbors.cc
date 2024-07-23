@@ -43,9 +43,15 @@ torch::Tensor get_corresponding_edges(
 ) {
     torch::Tensor centers = array.index({torch::indexing::Slice(), 0}).to(torch::kLong).contiguous();
     torch::Tensor neighbors = array.index({torch::indexing::Slice(), 1}).to(torch::kLong).contiguous();
+    torch::Tensor shifts_x = array.index({torch::indexing::Slice(), 2}).to(torch::kLong).contiguous();
+    torch::Tensor shifts_y = array.index({torch::indexing::Slice(), 3}).to(torch::kLong).contiguous();
+    torch::Tensor shifts_z = array.index({torch::indexing::Slice(), 4}).to(torch::kLong).contiguous();
 
     long* centers_ptr = centers.data_ptr<long>();
     long* neighbors_ptr = neighbors.data_ptr<long>();
+    long* shifts_x_ptr = shifts_x.data_ptr<long>();
+    long* shifts_y_ptr = shifts_y.data_ptr<long>();
+    long* shifts_z_ptr = shifts_z.data_ptr<long>();
 
     int64_t n_edges = centers.size(0);
 
@@ -56,7 +62,7 @@ torch::Tensor get_corresponding_edges(
 
     for (int64_t i = 0; i < n_edges; i++) {
         for (int64_t j = 0; j < n_edges; j++) {
-            if (centers_ptr[i] == neighbors_ptr[j] && centers_ptr[j] == neighbors_ptr[i]) {
+            if (centers_ptr[i] == neighbors_ptr[j] && centers_ptr[j] == neighbors_ptr[i] && shifts_x_ptr[i] == -shifts_x_ptr[j] && shifts_y_ptr[i] == -shifts_y_ptr[j] && shifts_z_ptr[i] == -shifts_z_ptr[j]) {
                 inverse_indices_ptr[i] = j;
                 break;
             }

@@ -48,6 +48,9 @@ std::vector<torch::Tensor> get_nef_indices(
 __global__ void find_corresponding_edges_kernel(
     const long* centers_ptr,
     const long* neighbors_ptr,
+    const long* shift_x_ptr,
+    const long* shift_y_ptr,
+    const long* shift_z_ptr,
     long* inverse_indices_ptr,
     int64_t n_edges
 ) {
@@ -56,7 +59,7 @@ __global__ void find_corresponding_edges_kernel(
     if (i < n_edges) {
         bool found = false;
         for (int64_t j = 0; j < n_edges; j++) {
-            if (centers_ptr[i] == neighbors_ptr[j] && centers_ptr[j] == neighbors_ptr[i]) {
+            if (centers_ptr[i] == neighbors_ptr[j] && centers_ptr[j] == neighbors_ptr[i] && shift_x_ptr[i] == -shift_x_ptr[j] && shift_y_ptr[i] == -shift_y_ptr[j] && shift_z_ptr[i] == -shift_z_ptr[j]) {
                 inverse_indices_ptr[i] = j;
                 found = true;
                 break;
@@ -73,9 +76,15 @@ torch::Tensor get_corresponding_edges(
 ) {
     torch::Tensor centers = array.index({torch::indexing::Slice(), 0}).to(torch::kLong).contiguous();
     torch::Tensor neighbors = array.index({torch::indexing::Slice(), 1}).to(torch::kLong).contiguous();
+    torch::Tensor shift_x = array.index({torch::indexing::Slice(), 2}).to(torch::kLong).contiguous();
+    torch::Tensor shift_y = array.index({torch::indexing::Slice(), 3}).to(torch::kLong).contiguous();
+    torch::Tensor shift_z = array.index({torch::indexing::Slice(), 4}).to(torch::kLong).contiguous();
 
     long* centers_ptr = centers.data_ptr<long>();
     long* neighbors_ptr = neighbors.data_ptr<long>();
+    long* shift_x_ptr = shift_x.data_ptr<long>();
+    long* shift_y_ptr = shift_y.data_ptr<long>();
+    long* shift_z_ptr = shift_z.data_ptr<long>();
 
     int64_t n_edges = centers.size(0);
 
@@ -90,6 +99,9 @@ torch::Tensor get_corresponding_edges(
     find_corresponding_edges_kernel<<<num_blocks, threads_per_block>>>(
         centers_ptr,
         neighbors_ptr,
+        shift_x_ptr,
+        shift_y_ptr,
+        shift_z_ptr,
         inverse_indices_ptr,
         n_edges
     );

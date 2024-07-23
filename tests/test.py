@@ -42,10 +42,14 @@ def test_get_nef_indices_torchscript(device):
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
 def test_get_corresponding_edges(device):
     array = torch.randint(0, 5, (10, 2), device=device)
-    array = torch.cat([array, array.flip(1)])
+    shifts = torch.randint(0, 5, (10, 3), device=device)
+    neighbor_list = torch.cat([
+        torch.cat([array, array.flip(1)]),
+        torch.cat([shifts, -shifts]),
+    ], dim=1)
 
-    result = get_corresponding_edges(array)
-    result_ref = get_corresponding_edges_ref(array)
+    result = get_corresponding_edges(neighbor_list)
+    result_ref = get_corresponding_edges_ref(neighbor_list)
 
     assert torch.equal(result, result_ref)
 
@@ -53,21 +57,25 @@ def test_get_corresponding_edges(device):
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
 def test_get_corresponding_edges_torchscript(device):
     array = torch.randint(0, 5, (10, 2), device=device)
-    array = torch.cat([array, array.flip(1)])
+    shifts = torch.randint(0, 5, (10, 3), device=device)
+    neighbor_list = torch.cat([
+        torch.cat([array, array.flip(1)]),
+        torch.cat([shifts, -shifts]),
+    ], dim=1)
 
     @torch.jit.script
-    def get_corresponding_edges_ts(array):
-        return get_corresponding_edges(array)
+    def get_corresponding_edges_ts(neighbor_list):
+        return get_corresponding_edges(neighbor_list)
 
-    result = get_corresponding_edges_ts(array)
-    result_ref = get_corresponding_edges_ref(array)
+    result = get_corresponding_edges_ts(neighbor_list)
+    result_ref = get_corresponding_edges_ref(neighbor_list)
 
     assert torch.equal(result, result_ref)
 
 
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
 def test_get_corresponding_edges_error(device):
-    array = torch.randint(0, 5, (10, 2), device=device)
+    array = torch.randint(0, 5, (10, 5), device=device)
 
     with pytest.raises(RuntimeError):
         get_corresponding_edges(array)

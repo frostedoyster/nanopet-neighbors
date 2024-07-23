@@ -27,12 +27,14 @@ def get_nef_indices(centers, n_nodes: int, n_edges_per_node: int):
 
 
 @torch.jit.script
-def get_corresponding_edges(array):
+def get_corresponding_edges(neighbor_list):
+    array = neighbor_list[:, :2]
+    shifts = neighbor_list[:, 2:]
     n_edges = len(array)
-    array_inversed = array.flip(1)
+    neighbor_list_corresponding = torch.concatenate([array.flip(1), -shifts], dim=1)
     inverse_indices = torch.empty((n_edges,), dtype=torch.long, device=array.device)
     for i in range(n_edges):
         inverse_indices[i] = torch.nonzero(
-            torch.all(array_inversed == array[i], dim=1)
+            torch.all(neighbor_list_corresponding == neighbor_list[i], dim=1)
         )[0][0]
     return inverse_indices
