@@ -2,14 +2,36 @@
 #include <cmath>
 
 
+__global__ void get_nef_indices_kernel(
+    const long* centers_ptr,
+    long* edges_to_nef_ptr,
+    long* nef_to_edges_neighbor_ptr,
+    bool* nef_mask_ptr,
+    int64_t n_edges,
+    int64_t n_nodes,
+    int64_t n_edges_per_node
+) {
+    int center = blockIdx.x * blockDim.x + threadIdx.x;
+    int node_counter = 0;
+
+    // parallelize over centers, and not edges, to avoid concurrent writes to edges_to_nef
+    if (center < n_nodes) {
+        for (int64_t i_edge = 0; i_edge < n_edges; i_edge++) {
+            if (centers_ptr[i_edge] == center) {
+                edges_to_nef_ptr[center * n_edges_per_node + node_counter] = i_edge;
+                nef_mask_ptr[center * n_edges_per_node + node_counter] = true;
+                nef_to_edges_neighbor_ptr[i_edge] = node_counter;
+                node_counter++;
+            }
+        }
+    }
+}
+
 std::vector<torch::Tensor> get_nef_indices(
     torch::Tensor centers,
     int64_t n_nodes,
     int64_t n_edges_per_node
 ) {
-    torch::Device original_device = centers.device();
-    centers = centers.to(torch::kCPU);
-
     centers = centers.to(torch::kLong).contiguous();
 
     int64_t n_edges = centers.size(0);
@@ -19,7 +41,6 @@ std::vector<torch::Tensor> get_nef_indices(
     torch::Tensor nef_to_edges_neighbor = torch::empty(
         {n_edges}, torch::TensorOptions().dtype(torch::kLong).device(centers.device())
     );
-    std::vector<long> node_counter(n_nodes, 0);
     torch::Tensor nef_mask = torch::full(
         {n_nodes, n_edges_per_node}, 0, torch::TensorOptions().dtype(torch::kBool).device(centers.device())
     );
@@ -29,17 +50,27 @@ std::vector<torch::Tensor> get_nef_indices(
     long* nef_to_edges_neighbor_ptr = nef_to_edges_neighbor.data_ptr<long>();
     bool* nef_mask_ptr = nef_mask.data_ptr<bool>();
 
-    for (int64_t i = 0; i < n_edges; i++) {
-        long center = centers_ptr[i];
-        edges_to_nef_ptr[center * n_edges_per_node + node_counter[center]] = i;
-        nef_mask_ptr[center * n_edges_per_node + node_counter[center]] = true;
-        nef_to_edges_neighbor_ptr[i] = node_counter[center];
-        node_counter[center] += 1;
+    cudaPointerAttributes attributes;
+    cudaPointerGetAttributes(&attributes, centers_ptr);
+    int current_device;
+    cudaGetDevice(&current_device);
+    if (current_device != attributes.device) {
+        cudaSetDevice(attributes.device);
     }
 
-    edges_to_nef = edges_to_nef.to(original_device);
-    nef_to_edges_neighbor = nef_to_edges_neighbor.to(original_device);
-    nef_mask = nef_mask.to(original_device);
+    int threads_per_block = 256;
+    int num_blocks = (n_nodes + threads_per_block - 1) / threads_per_block;
+    get_nef_indices_kernel<<<num_blocks, threads_per_block>>>(
+        centers_ptr,
+        edges_to_nef_ptr,
+        nef_to_edges_neighbor_ptr,
+        nef_mask_ptr,
+        n_edges,
+        n_nodes,
+        n_edges_per_node
+    );
+
+    cudaSetDevice(current_device);
 
     return {edges_to_nef, nef_to_edges_neighbor, nef_mask};
 }
@@ -93,9 +124,6 @@ torch::Tensor get_corresponding_edges(
     );
     long* inverse_indices_ptr = inverse_indices.data_ptr<long>();
 
-    int threads_per_block = 256;
-    int num_blocks = (n_edges + threads_per_block - 1) / threads_per_block;
-
     cudaPointerAttributes attributes;
     cudaPointerGetAttributes(&attributes, centers_ptr);
     int current_device;
@@ -104,6 +132,8 @@ torch::Tensor get_corresponding_edges(
         cudaSetDevice(attributes.device);
     }
 
+    int threads_per_block = 256;
+    int num_blocks = (n_edges + threads_per_block - 1) / threads_per_block;
     find_corresponding_edges_kernel<<<num_blocks, threads_per_block>>>(
         centers_ptr,
         neighbors_ptr,
