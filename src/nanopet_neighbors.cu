@@ -96,6 +96,14 @@ torch::Tensor get_corresponding_edges(
     int threads_per_block = 256;
     int num_blocks = (n_edges + threads_per_block - 1) / threads_per_block;
 
+    cudaPointerAttributes attributes;
+    cudaPointerGetAttributes(&attributes, centers_ptr);
+    int current_device;
+    cudaGetDevice(&current_device);
+    if (current_device != attributes.device) {
+        cudaSetDevice(attributes.device);
+    }
+
     find_corresponding_edges_kernel<<<num_blocks, threads_per_block>>>(
         centers_ptr,
         neighbors_ptr,
@@ -105,6 +113,8 @@ torch::Tensor get_corresponding_edges(
         inverse_indices_ptr,
         n_edges
     );
+
+    cudaSetDevice(current_device);
 
     cudaError_t err = cudaGetLastError();
     if (err != cudaSuccess) {
