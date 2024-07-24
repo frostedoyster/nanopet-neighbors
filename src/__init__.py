@@ -14,9 +14,8 @@ try:
     site_packages_directory = get_python_lib()
     lib_path = os.path.join(site_packages_directory, "nanopet_neighbors_cuda.so")
     torch.ops.load_library(str(lib_path))
-    HAS_CUDA = True
-except Exception:
-    HAS_CUDA = False
+except:
+    pass
 
 
 def get_nef_indices(centers, n_nodes: int, n_edges_per_node: int):
@@ -35,11 +34,7 @@ def get_nef_indices(centers, n_nodes: int, n_edges_per_node: int):
     else:
         raise ValueError(f"Unsupported device: {device}")
 
-    return (
-        edges_to_nef.to(original_dtype),
-        nef_to_edges_neighbor.to(original_dtype),
-        nef_mask,
-    )
+    return edges_to_nef.to(original_dtype), nef_to_edges_neighbor.to(original_dtype), nef_mask
 
 
 def get_corresponding_edges(array):

@@ -2,7 +2,6 @@ import torch
 
 
 def get_nef_indices(centers, n_nodes: int, n_edges_per_node: int):
-
     n_edges = len(centers)
     edges_to_nef = torch.zeros(
         (n_nodes, n_edges_per_node), dtype=torch.long, device=centers.device
@@ -14,16 +13,13 @@ def get_nef_indices(centers, n_nodes: int, n_edges_per_node: int):
     nef_mask = torch.full(
         (n_nodes, n_edges_per_node), 0, dtype=torch.bool, device=centers.device
     )
-
     for i in range(n_edges):
         center = centers[i]
         edges_to_nef[center, node_counter[center]] = i
         nef_mask[center, node_counter[center]] = True
         nef_to_edges_neighbor[i] = node_counter[center]
         node_counter[center] += 1
-
     return edges_to_nef, nef_to_edges_neighbor, nef_mask
-
 
 def get_corresponding_edges(neighbor_list):
     array = neighbor_list[:, :2]
