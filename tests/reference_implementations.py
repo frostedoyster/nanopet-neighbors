@@ -1,7 +1,6 @@
 import torch
 
 
-@torch.jit.script
 def get_nef_indices(centers, n_nodes: int, n_edges_per_node: int):
 
     n_edges = len(centers)
@@ -26,7 +25,6 @@ def get_nef_indices(centers, n_nodes: int, n_edges_per_node: int):
     return edges_to_nef, nef_to_edges_neighbor, nef_mask
 
 
-@torch.jit.script
 def get_corresponding_edges(neighbor_list):
     array = neighbor_list[:, :2]
     shifts = neighbor_list[:, 2:]
