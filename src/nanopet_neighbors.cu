@@ -50,27 +50,29 @@ std::vector<torch::Tensor> get_nef_indices(
     long* nef_to_edges_neighbor_ptr = nef_to_edges_neighbor.data_ptr<long>();
     bool* nef_mask_ptr = nef_mask.data_ptr<bool>();
 
-    cudaPointerAttributes attributes;
-    cudaPointerGetAttributes(&attributes, centers_ptr);
-    int current_device;
-    cudaGetDevice(&current_device);
-    if (current_device != attributes.device) {
-        cudaSetDevice(attributes.device);
-    }
+    // cudaPointerAttributes attributes;
+    // cudaPointerGetAttributes(&attributes, centers_ptr);
+    // int current_device;
+    // cudaGetDevice(&current_device);
+    // if (current_device != attributes.device) {
+    //     cudaSetDevice(attributes.device);
+    // }
 
     int threads_per_block = 256;
     int num_blocks = (n_nodes + threads_per_block - 1) / threads_per_block;
-    get_nef_indices_kernel<<<num_blocks, threads_per_block>>>(
-        centers_ptr,
-        edges_to_nef_ptr,
-        nef_to_edges_neighbor_ptr,
-        nef_mask_ptr,
-        n_edges,
-        n_nodes,
-        n_edges_per_node
-    );
+    if (n_nodes > 0) {
+        get_nef_indices_kernel<<<num_blocks, threads_per_block>>>(
+            centers_ptr,
+            edges_to_nef_ptr,
+            nef_to_edges_neighbor_ptr,
+            nef_mask_ptr,
+            n_edges,
+            n_nodes,
+            n_edges_per_node
+        );
+    }
 
-    cudaSetDevice(current_device);
+    // cudaSetDevice(current_device);
 
     return {edges_to_nef, nef_to_edges_neighbor, nef_mask};
 }
@@ -124,27 +126,29 @@ torch::Tensor get_corresponding_edges(
     );
     long* inverse_indices_ptr = inverse_indices.data_ptr<long>();
 
-    cudaPointerAttributes attributes;
-    cudaPointerGetAttributes(&attributes, centers_ptr);
-    int current_device;
-    cudaGetDevice(&current_device);
-    if (current_device != attributes.device) {
-        cudaSetDevice(attributes.device);
-    }
+    // cudaPointerAttributes attributes;
+    // cudaPointerGetAttributes(&attributes, centers_ptr);
+    // int current_device;
+    // cudaGetDevice(&current_device);
+    // if (current_device != attributes.device) {
+    //     cudaSetDevice(attributes.device);
+    // }
 
     int threads_per_block = 256;
     int num_blocks = (n_edges + threads_per_block - 1) / threads_per_block;
-    find_corresponding_edges_kernel<<<num_blocks, threads_per_block>>>(
-        centers_ptr,
-        neighbors_ptr,
-        shift_x_ptr,
-        shift_y_ptr,
-        shift_z_ptr,
-        inverse_indices_ptr,
-        n_edges
-    );
+    if (n_edges > 0) {
+        find_corresponding_edges_kernel<<<num_blocks, threads_per_block>>>(
+            centers_ptr,
+            neighbors_ptr,
+            shift_x_ptr,
+            shift_y_ptr,
+            shift_z_ptr,
+            inverse_indices_ptr,
+            n_edges
+        );
+    }
 
-    cudaSetDevice(current_device);
+    // cudaSetDevice(current_device);
 
     cudaError_t err = cudaGetLastError();
     if (err != cudaSuccess) {
