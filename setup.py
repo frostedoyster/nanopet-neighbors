@@ -11,6 +11,7 @@ nanopet_neighbors_cpu = CppExtension(
 nanopet_neighbors_cuda = CUDAExtension(
     name="nanopet_neighbors_cuda",
     sources=["src/nanopet_neighbors.cu"],
+    extra_compile_args={"nvcc": ["-G"]},
 )
 
 extensions = [nanopet_neighbors_cpu]

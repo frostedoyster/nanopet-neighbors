@@ -53,5 +53,7 @@ def test_get_corresponding_edges(device, torchscript):
 def test_get_corresponding_edges_error(device):
     array = torch.randint(0, 5, (10, 5), device=device)
 
-    with pytest.raises(RuntimeError):
+    with pytest.raises(Exception):
         get_corresponding_edges(array)
+        # This will actually fail with a CUDA assert, but we can't catch that
+        # in a Python test...

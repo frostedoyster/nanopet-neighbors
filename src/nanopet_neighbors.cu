@@ -97,7 +97,9 @@ __global__ void find_corresponding_edges_kernel(
             }
         }
         if (!found) {
-            inverse_indices_ptr[i] = -1; // Use -1 to indicate no corresponding edge found
+            // throw error if no corresponding edge is found
+            // note that assert is only available with the -G nvcc flag
+            assert(found && "No corresponding edge found");
         }
     }
 }
@@ -149,10 +151,6 @@ torch::Tensor get_corresponding_edges(
     cudaError_t err = cudaGetLastError();
     if (err != cudaSuccess) {
         throw std::runtime_error(std::string("CUDA kernel failed: ") + cudaGetErrorString(err));
-    }
-
-    if (torch::any(inverse_indices == -1).item<bool>()) {
-        throw std::runtime_error("Some edges do not have corresponding edges");
     }
 
     return inverse_indices;
